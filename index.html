@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Sistema Lava Jato - Corrigido</title>
+
+<!-- jsPDF e html2canvas -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;font-family:Inter, "Poppins", Arial, sans-serif}
+  body{background:#f4f4f4;color:#222}
+  header{background:#31738A;color:#fff;padding:14px;text-align:center;font-weight:700}
+  nav{background:#53b3d6;display:flex;flex-wrap:wrap;justify-content:center}
+  nav button{flex:1;min-width:100px;padding:10px;border:0;background:none;color:#000000;cursor:pointer;font-weight:700}
+  nav button.active, nav button:hover{background:#2db889}
+  section{display:none;padding:18px;max-width:900px;margin:0 auto}
+  section.active{display:block}
+  h2{text-align:center;color:#31738A;margin-bottom:12px}
+  form{background:#fff;padding:14px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.08);margin-bottom:14px}
+  form label{display:block;margin-top:10px;font-weight:600}
+  form input{width:100%;padding:10px;border:1px solid #ccc;border-radius:8px;margin-top:6px}
+  form button{margin-top:12px;width:100%;padding:12px;background:#31738A;color:#fff;border:none;border-radius:8px;cursor:pointer}
+  .tabela-container{overflow-x:auto;background:#fff;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.06);padding:8px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:10px;border-bottom:1px solid #eee;text-align:center;font-size:0.95rem}
+  th{background:#31738A;color:#fff}
+  .btn-excluir{background:#d32f2f;color:#fff;border:0;padding:6px 8px;border-radius:6px;cursor:pointer}
+  .resumo{margin-top:12px;background:#fff;padding:12px;border-radius:10px;box-shadow:0 2px 8px rgba(0,0,0,.06);text-align:center}
+  .btn-pdf{background:#2e7d32;color:#fff;border:0;padding:10px 12px;border-radius:8px;cursor:pointer;margin-top:8px}
+  @media (max-width:600px){header{font-size:1rem} nav button{font-size:0.9rem} th,td{font-size:0.8rem}}
+</style>
+</head>
+<body>
+
+<header>Sistema Lava Jato</header>
+
+<nav>
+  <button class="active" onclick="mostrarSecao('carros', this)">Carros</button>
+  <button onclick="mostrarSecao('despesas', this)">Despesas</button>
+  <button onclick="mostrarSecao('relatorios', this)">Relatórios</button>
+</nav>
+
+<!-- CARROS -->
+<section id="carros" class="active">
+  <h2>Cadastro de Carros Atendidos</h2>
+  <form id="formCarro">
+    <label for="placa">Placa:</label>
+    <input id="placa" type="text" placeholder="ABC-1234" required>
+
+    <label for="modelo">Modelo:</label>
+    <input id="modelo" type="text" placeholder="Ex: Corolla" required>
+
+    <label for="valor">Valor (R$):</label>
+    <input id="valor" type="number" step="0.01" placeholder="50.00" required>
+
+    <button type="submit">Registrar Carro</button>
+  </form>
+
+  <div class="tabela-container">
+    <table id="tabelaCarros">
+      <thead><tr><th>Data</th><th>Placa</th><th>Modelo</th><th>Valor</th><th>Ação</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="resumo">
+    <p><strong>Total Recebido:</strong> R$ <span id="totalRecebido">0.00</span></p>
+    <button class="btn-pdf" onclick="gerarPDFCarros()">Baixar Relatório (PDF)</button>
+  </div>
+</section>
+
+<!-- DESPESAS -->
+<section id="despesas">
+  <h2>Controle de Despesas</h2>
+  <form id="formDespesa">
+    <label for="descricao">Descrição:</label>
+    <input id="descricao" type="text" placeholder="Ex: Compra de produtos" required>
+
+    <label for="valorDespesa">Valor (R$):</label>
+    <input id="valorDespesa" type="number" step="0.01" placeholder="25.00" required>
+
+    <button type="submit">Registrar Despesa</button>
+  </form>
+
+  <div class="tabela-container">
+    <table id="tabelaDespesas">
+      <thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Ação</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="resumo">
+    <p><strong>Total de Despesas:</strong> R$ <span id="totalDespesas">0.00</span></p>
+    <button class="btn-pdf" onclick="gerarPDFDespesas()">Baixar Relatório (PDF)</button>
+  </div>
+</section>
+
+<!-- RELATÓRIOS -->
+<section id="relatorios">
+  <h2>Relatórios Financeiros</h2>
+  <div class="resumo" id="resumoLucros"></div>
+  <button class="btn-pdf" onclick="gerarPDFRelatorio()">Baixar Relatório Financeiro (PDF)</button>
+</section>
+
+<script>
+  const { jsPDF } = window.jspdf;
+
+  /* --- references (corrigido) --- */
+  // Carros inputs
+  const placaInput = document.getElementById("placa");
+  const modeloInput = document.getElementById("modelo");
+  const valorInput = document.getElementById("valor");
+  const formCarro = document.getElementById("formCarro");
+  const tabelaCarros = document.querySelector("#tabelaCarros tbody");
+  // Despesas inputs
+  const descricaoInput = document.getElementById("descricao");
+  const valorDespesa = document.getElementById("valorDespesa");
+  const formDespesa = document.getElementById("formDespesa");
+  const tabelaDespesas = document.querySelector("#tabelaDespesas tbody");
+
+  // mostrar seção (mais robusto: recebe o botão clicado)
+  function mostrarSecao(id, btn) {
+    document.querySelectorAll("section").forEach(s => s.classList.remove("active"));
+    document.querySelectorAll("nav button").forEach(b => b.classList.remove("active"));
+    document.getElementById(id).classList.add("active");
+    if (btn) btn.classList.add("active");
+    atualizarRelatorio();
+  }
+
+  function dataAtual() {
+    const d = new Date();
+    // formato dd/mm/yyyy hh:mm
+    const dia = String(d.getDate()).padStart(2,'0');
+    const mes = String(d.getMonth()+1).padStart(2,'0');
+    const ano = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2,'0');
+    const mm = String(d.getMinutes()).padStart(2,'0');
+    return `${dia}/${mes}/${ano} ${hh}:${mm}`;
+  }
+
+  /* --------------- CARROS --------------- */
+  formCarro.addEventListener("submit", e => {
+    e.preventDefault();
+    const placa = placaInput.value.trim().toUpperCase();
+    const modelo = modeloInput.value.trim();
+    const valor = parseFloat(valorInput.value);
+    if (!placa || !modelo || isNaN(valor)) return alert("Preencha todos os campos corretamente.");
+    const carros = JSON.parse(localStorage.getItem("carros")) || [];
+    carros.push({ placa, modelo, valor, data: dataAtual() });
+    localStorage.setItem("carros", JSON.stringify(carros));
+    formCarro.reset();
+    carregarCarros();
+    atualizarRelatorio();
+  });
+
+  function carregarCarros() {
+    const carros = JSON.parse(localStorage.getItem("carros")) || [];
+    tabelaCarros.innerHTML = "";
+    let total = 0;
+    carros.forEach((c, i) => {
+      total += Number(c.valor);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${c.data}</td>
+                      <td>${c.placa}</td>
+                      <td>${c.modelo}</td>
+                      <td>${Number(c.valor).toFixed(2)}</td>
+                      <td><button class="btn-excluir" onclick="excluirCarro(${i})">Excluir</button></td>`;
+      tabelaCarros.appendChild(tr);
+    });
+    document.getElementById("totalRecebido").textContent = total.toFixed(2);
+  }
+
+  function excluirCarro(i) {
+    const carros = JSON.parse(localStorage.getItem("carros")) || [];
+    carros.splice(i,1);
+    localStorage.setItem("carros", JSON.stringify(carros));
+    carregarCarros();
+    atualizarRelatorio();
+  }
+
+  /* --------------- DESPESAS --------------- */
+  formDespesa.addEventListener("submit", e => {
+    e.preventDefault();
+    const descricao = descricaoInput.value.trim();
+    const valor = parseFloat(valorDespesa.value);
+    if (!descricao || isNaN(valor)) return alert("Preencha todos os campos corretamente.");
+    const despesas = JSON.parse(localStorage.getItem("despesas")) || [];
+    despesas.push({ descricao, valor, data: dataAtual() });
+    localStorage.setItem("despesas", JSON.stringify(despesas));
+    formDespesa.reset();
+    carregarDespesas();
+    atualizarRelatorio();
+  });
+
+  function carregarDespesas() {
+    const despesas = JSON.parse(localStorage.getItem("despesas")) || [];
+    tabelaDespesas.innerHTML = "";
+    let total = 0;
+    despesas.forEach((d, i) => {
+      total += Number(d.valor);
+      const tr = document.createElement("tr");
+      tr.innerHTML = `<td>${d.data}</td>
+                      <td>${d.descricao}</td>
+                      <td>${Number(d.valor).toFixed(2)}</td>
+                      <td><button class="btn-excluir" onclick="excluirDespesa(${i})">Excluir</button></td>`;
+      tabelaDespesas.appendChild(tr);
+    });
+    document.getElementById("totalDespesas").textContent = total.toFixed(2);
+  }
+
+  function excluirDespesa(i) {
+    const despesas = JSON.parse(localStorage.getItem("despesas")) || [];
+    despesas.splice(i,1);
+    localStorage.setItem("despesas", JSON.stringify(despesas));
+    carregarDespesas();
+    atualizarRelatorio();
+  }
+
+  /* --------------- RELATÓRIO --------------- */
+  function atualizarRelatorio() {
+    const carros = JSON.parse(localStorage.getItem("carros")) || [];
+    const despesas = JSON.parse(localStorage.getItem("despesas")) || [];
+
+    const totalReceita = carros.reduce((s,c) => s + Number(c.valor), 0);
+    const totalDespesas = despesas.reduce((s,d) => s + Number(d.valor), 0);
+    const lucro = totalReceita - totalDespesas;
+
+    document.getElementById("resumoLucros").innerHTML = `
+      <p><strong>Total Recebido:</strong> R$ ${totalReceita.toFixed(2)}</p>
+      <p><strong>Total de Despesas:</strong> R$ ${totalDespesas.toFixed(2)}</p>
+      <p><strong>Lucro Líquido:</strong> R$ ${lucro.toFixed(2)}</p>
+    `;
+  }
+
+  /* --------------- PDF (simples) --------------- */
+  function gerarPDFCarros() {
+    const pdf = new jsPDF();
+    pdf.setFontSize(12);
+    pdf.text("Relatório de Carros Atendidos", 10, 10);
+    const carros = JSON.parse(localStorage.getItem("carros")) || [];
+    let y = 20, total = 0;
+    carros.forEach(c => {
+      const linha = `${c.data} - ${c.placa} - ${c.modelo} - R$ ${Number(c.valor).toFixed(2)}`;
+      pdf.text(linha, 10, y);
+      y += 7;
+      total += Number(c.valor);
+      if (y > 280) { pdf.addPage(); y = 20; }
+    });
+    pdf.setFontSize(13);
+    pdf.text(`Total Recebido: R$ ${total.toFixed(2)}`, 10, y + 10);
+    pdf.save("relatorio_carros.pdf");
+  }
+
+  function gerarPDFDespesas() {
+    const pdf = new jsPDF();
+    pdf.setFontSize(12);
+    pdf.text("Relatório de Despesas", 10, 10);
+    const despesas = JSON.parse(localStorage.getItem("despesas")) || [];
+    let y = 20, total = 0;
+    despesas.forEach(d => {
+      const linha = `${d.data} - ${d.descricao} - R$ ${Number(d.valor).toFixed(2)}`;
+      pdf.text(linha, 10, y);
+      y += 7;
+      total += Number(d.valor);
+      if (y > 280) { pdf.addPage(); y = 20; }
+    });
+    pdf.setFontSize(13);
+    pdf.text(`Total de Despesas: R$ ${total.toFixed(2)}`, 10, y + 10);
+    pdf.save("relatorio_despesas.pdf");
+  }
+
+  function gerarPDFRelatorio() {
+    const pdf = new jsPDF();
+    pdf.setFontSize(14);
+    pdf.text("Relatório Financeiro - Lava Jato", 10, 12);
+    const resumo = document.getElementById("resumoLucros").innerText;
+    pdf.setFontSize(12);
+    const linhas = resumo.split("\n");
+    let y = 30;
+    linhas.forEach(l => {
+      pdf.text(l.trim(), 10, y);
+      y += 8;
+    });
+    pdf.save("relatorio_financeiro.pdf");
+  }
+
+  // Inicializa dados na tela
+  carregarCarros();
+  carregarDespesas();
+  atualizarRelatorio();
+</script>
+</body>
+</html>
